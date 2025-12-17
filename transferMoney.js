@@ -4,6 +4,13 @@ var request = require("request");
 const sunabarToken = process.env.sunabarToken;
 const accountId = process.env.accountId;
 
+// 今日の日付を取得
+const today = new Date();
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, "0");
+const dd = String(today.getDate()).padStart(2, "0");
+const formattedDate = `${yyyy}-${mm}-${dd}`;
+
 function transferMoney(money) {
   const options = {
     method: "POST",
@@ -15,7 +22,7 @@ function transferMoney(money) {
     },
     body: JSON.stringify({
       accountId: accountId,
-      transferDesignatedDate: "2025-12-17",
+      transferDesignatedDate: formattedDate,
       transferDateHolidayCode: "1",
       totalCount: "1",
       totalAmount: money,
