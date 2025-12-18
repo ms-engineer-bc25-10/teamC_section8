@@ -2,6 +2,7 @@
 
 const request = require("request");
 const accountId = process.env.accountId;
+const bankAccountNo = process.env.bankAccountNo;
 
 /**
  * 振込依頼APIを呼び出す
@@ -31,7 +32,7 @@ function requestTransfer(sunabarToken, transferDate, amount) {
           beneficiaryBankCode: "0310",
           beneficiaryBranchCode: "301",
           accountTypeCode: "1",
-          accountNumber: "0011631",
+          accountNumber: bankAccountNo,
           beneficiaryName: "ﾀﾞｻﾞｲﾌ ﾃﾝﾏﾝｸﾞｳ",
         },
       ],

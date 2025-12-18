@@ -3,6 +3,7 @@
 var request = require("request");
 const sunabarToken = process.env.sunabarToken;
 const accountId = process.env.accountId;
+const bankAccountNo = process.env.bankAccountNo;
 
 // 今日の日付を取得
 const today = new Date();
@@ -33,8 +34,8 @@ function transferMoney(money) {
           beneficiaryBankCode: "0310",
           beneficiaryBranchCode: "302",
           accountTypeCode: "1",
-          accountNumber: "0011631",
-          beneficiaryName: "ｽﾅﾊﾞ ﾕｳｺ",
+          accountNumber: bankAccountNo,
+          beneficiaryName: "ﾀﾞｻﾞｲﾌ ﾃﾝﾏﾝｸﾞｳ",
         },
       ],
     }),
