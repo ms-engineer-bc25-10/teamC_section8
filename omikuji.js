@@ -26,8 +26,8 @@ module.exports = { drawOmikuji };
 // results = ["大吉","大吉","大吉", "吉", "中吉", "小吉", "末吉", "凶"];
 // ★lengthは8
 
-// 【Math.random() * 6】
-// 0以上6未満のランダムな小数
+// 【Math.random() * 8】
+// 0以上8未満のランダムな小数
 // 例：2.3, 5.9, 0.1
 
 // 【Math.floor(...)】
