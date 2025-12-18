@@ -23,20 +23,20 @@ const STEP = {
 
 //神社一覧
 const BANK_TEXT_TO_CODE = {
-    "太宰府天満宮": "BANK_A",
-    "防府天満宮": "BANK_B",
-    "北野天満宮": "BANK_C",
-    "出雲大社": "BANK_D",
-    "湯島天神": "BANK_E",
-    "善光寺": "BANK_F"
+    "太宰府天満宮（お参り）": "BANK_A",
+    "防府天満宮（お参り）": "BANK_B",
+    "北野天満宮（お参り）": "BANK_C",
+    "出雲大社（お参り）": "BANK_D",
+    "湯島天神（お参り）": "BANK_E",
+    "善光寺（お参り）": "BANK_F"
 };
 const BANK_LABEL_MAP = {
-    BANK_A: "太宰府天満宮",
-    BANK_B: "防府天満宮",
-    BANK_C: "北野天満宮",
-    BANK_D: "出雲大社",
-    BANK_E: "湯島天神",
-    BANK_F: "善光寺"
+    BANK_A: "太宰府天満宮（お参り）",
+    BANK_B: "防府天満宮（お参り）",
+    BANK_C: "北野天満宮（お参り）",
+    BANK_D: "出雲大社（お参り）",
+    BANK_E: "湯島天神（お参り）",
+    BANK_F: "善光寺（お参り）"
 };
 
 
