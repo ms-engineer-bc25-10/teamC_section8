@@ -3,8 +3,11 @@
 // *** 独自関数呼び出し+その他（ayaさん） ***
 // const { getBalance } = require("./balance");
 // const { postTransfer } = require("./transfer");
+// const userStatus = {};
+// const { getTodayJST } = require("./date");
 const { getStatement } = require("./statement");
-const { replyText } = require("./lineReply");
+const { replyText, replyTextWithQuickReply } = require("./lineReply");
+const { getDateJSTDaysAgo } = require("./date");
 
 // *** 独自関数呼び出し+その他（さおりんさん） ***
 const { getBalance } = require("./get_balance");
@@ -84,21 +87,86 @@ exports.handler = async (event) => {
 
   // *** 履歴一覧 ***
   if (reqMessage === "履歴一覧") {
-    const statement = await getStatement();
+    console.log("履歴一覧リクエストきたよ");
 
-    const text = statement.transactions
-      .filter((tx) => tx.transactionType === "2")
-      .slice(0, 5) //直近5件
-      .map((tx) => {
-        const amount = Math.abs(tx.amount);
-        const result = `📅${tx.transactionDate}
-      💴${amount}円
-      📝${tx.remarks ?? ""}`;
-        return result;
-      })
-      .join("\n\n");
+    // このユーザーは「履歴の期間選択中」
+    userStatus[userId] = {
+      mode: "HISTORY_SELECT",
+    };
 
-    await replyText(replyToken, text);
+    await replyTextWithQuickReply(
+      replyToken,
+      "履歴を確認したい期間を選んでください。",
+      [
+        { label: "今日", text: "今日" },
+        { label: "３日間", text: "３日間" },
+        { label: "今週", text: "今週" },
+        { label: "大宰府", text: "大宰府" },
+      ]
+    );
+    return { statusCode: 200, body: "OK" };
+  }
+
+  // 期間選択 ("userStatusがHISTORY_SELECTの場合のみ）
+  if (
+    userStatus[userId]?.mode === "HISTORY_SELECT" &&
+    ["今日", "３日間", "今週", "大宰府"].includes(reqMessage)
+  ) {
+    console.log("期間選択リクエスト:", reqMessage);
+
+    // type に変換
+    let type;
+    switch (reqMessage) {
+      case "今日":
+        type = "today";
+        break;
+      case "３日間":
+        type = "3days";
+        break;
+      case "今週":
+        type = "thisWeek";
+        break;
+      case "大宰府":
+        type = "dazaifu";
+        break;
+      default:
+        type = "today";
+    }
+
+    try {
+      const statement = await getStatement(type);
+
+      console.log(
+        "表示対象(type=2)",
+        statement.transactions
+          .filter((tx) => String(tx.transactionType) === "2")
+          .map((tx) => tx.transactionDate)
+      );
+
+      const text = statement.transactions
+        .filter((tx) => String(tx.transactionType) === "2")
+        .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate))
+        // .slice(0, 5)
+        .map(
+          (tx) =>
+            `📅 ${tx.transactionDate}\n💴 ${Math.abs(
+              Number(tx.amount)
+            )}円\n📝 ${tx.remarks ?? "（摘要なし）"}`
+        )
+        .join("\n\n");
+
+      await replyText(replyToken, text || "履歴がありません");
+
+      // 状態をクリア
+      delete userStatus[userId];
+      return { statusCode: 200, body: "OK" };
+    } catch (err) {
+      console.error("履歴取得エラー:", err);
+      await replyText(replyToken, "履歴の取得に失敗しました");
+
+      delete userStatus[userId];
+      return { statusCode: 500, body: "NG" };
+    }
   }
 
   // *** お参り ***
@@ -201,8 +269,10 @@ exports.handler = async (event) => {
   ) {
     try {
       const transferData = tempTransferData[userId];
-      await postLuckMoney(transferData);
-
+      const result = await postLuckMoney(transferData);
+      userStatus[userId] = {
+        applyNo: result.applyNo,
+      };
       tempTransferData[userId].step = STEP.WAIT_AUTH_CONFIRM;
       const bankLabel = BANK_LABEL_MAP[tempTransferData[userId].bank];
       const amountText = Number(tempTransferData[userId].amount).toLocaleString(
@@ -256,14 +326,60 @@ exports.handler = async (event) => {
     tempTransferData[userId]?.step === STEP.WAIT_AUTH_CONFIRM &&
     reqMessage === "納付完了しました"
   ) {
-    delete tempTransferData[userId];
-    return client.replyMessage(replyToken, {
-      type: "text",
-      text: "✨チャリーン✨\n\n" + "合格祈願！！！",
-    });
-  }
+    try {
+      //認証しているか確認
+      console.log(
+        "【判定前】",
+        "userId:",
+        userId,
+        "applyNo:",
+        userStatus[userId]?.applyNo,
+        "step:",
+        tempTransferData[userId]?.step
+      );
 
-  // すみません、ここは思うように動かなかったので一旦コメントアウトしています（ひろ）
+      const result = await getDetail(userStatus[userId]?.applyNo);
+      console.log(result);
+      console.log("【getDetail 生ログ】", JSON.stringify(result, null, 2));
+      //1 = 認証完了
+      if (result === "1") {
+        console.log("【判定】SUCCESS");
+        delete tempTransferData[userId];
+        delete userStatus[userId];
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text: "✨チャリーン✨\n\n" + "合格祈願！！！",
+        });
+      } else {
+        //認証未完了
+        console.log("【判定】NOT COMPLETED");
+        return client.replyMessage(replyToken, {
+          type: "text",
+          text:
+            "振り込みが確認できませんでした。\n\n" +
+            "再度振り込みの認証ができているかご確認ください。",
+          quickReply: {
+            items: [
+              {
+                type: "action",
+                action: {
+                  type: "message",
+                  label: "納付完了しました",
+                  text: "納付完了しました",
+                },
+              },
+            ],
+          },
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      return client.replyMessage(replyToken, {
+        type: "text",
+        text: "認証状況の確認に失敗しました",
+      });
+    }
+  }
   //リッチメニューにない言葉が入力された時
   // else {
   //   return client.replyMessage(replyToken, {
@@ -302,29 +418,41 @@ exports.handler = async (event) => {
         amount
       );
 
-      console.log("振込API結果:", result);
+      console.log("納付API結果:", result);
 
       return client.replyMessage(replyToken, {
         type: "text",
         text:
-          "振込み受付を行いました。\n\n" +
+          "納付受付を行いました。\n\n" +
           "ログインして\n" +
-          "振込みを完了してください。\n\n" +
+          "納付を完了してください。\n\n" +
           "https://sso.sunabar.gmo-aozora.com/b2c/login",
+        quickReply: {
+          items: [
+            {
+              type: "action",
+              action: {
+                type: "message",
+                label: "納付しました",
+                text: "納付しました",
+              },
+            },
+          ],
+        },
       });
     } catch (err) {
-      console.error("振込エラー:", err);
+      console.error("納付エラー:", err);
       return client.replyMessage(replyToken, {
         type: "text",
-        text: "振込受付に失敗しました",
+        text: "納付に失敗しました",
       });
     }
   }
-  if (reqMessage === "振込完了") {
+  if (reqMessage === "納付しました") {
     return client.replyMessage(replyToken, {
       type: "text",
       text:
-        "振込みを確認できました。\n" +
+        "納付を確認できました。\n" +
         "おみくじの結果です 🎯\n\n" +
         "           ↓  ↓  ↓ \n\n\n\n" +
         "           ↓  ↓  ↓ \n\n\n\n" +
@@ -371,8 +499,16 @@ exports.handler = async (event) => {
       };
       console.log(userStatus[userId]);
 
+      // resMessage =
+      //   "振り込み受け付けを行いました。\nログインをしてパスワードを入力して振り込み手続きを完了してください。\nhttps://sso.sunabar.gmo-aozora.com/b2c/login";
+
       resMessage =
-        "振り込み受け付けを行いました。\nログインをしてパスワードを入力して振り込み手続きを完了してください。\nhttps://sso.sunabar.gmo-aozora.com/b2c/login";
+        `💰 納付受付を行いました。\n\n` +
+        `ログイン後パスワードを入力して納付手続きを完了してください。\n\n` +
+        `【振込先】\n太宰府天満宮（お守り）\n\n` +
+        `【金額】\n${money}円\n\n` +
+        `【ログイン先】https://portal.sunabar.gmo-aozora.com/login`;
+
       return client.replyMessage(replyToken, {
         type: "text",
         text: resMessage,
