@@ -1,0 +1,93 @@
+// *** 独自関数呼び出し+その他（ayaさん） ***
+// const { getBalance } = require("./balance");
+// const { postTransfer } = require("./transfer");
+// const userStatus = {};
+// const { getTodayJST } = require("./date");
+const { getStatement } = require("./statement");
+const { replyText, replyTextWithQuickReply } = require("./lineReply");
+const { getDateJSTDaysAgo } = require("./date");
+
+
+
+// *** 履歴一覧 ***
+if (reqMessage === "履歴一覧") {
+  console.log("履歴一覧リクエストきたよ");
+
+// このユーザーは「履歴の期間選択中」
+userStatus[userId] = {
+  mode: "HISTORY_SELECT"
+};
+
+  await replyTextWithQuickReply(
+    replyToken,
+    "履歴を確認したい期間を選んでください。",
+    [
+      { label: "今日", text: "今日" },
+      { label: "３日間", text: "３日間" },
+      { label: "今週", text: "今週" },
+      { label: "大宰府", text: "大宰府" },
+    ]
+  );
+  return { statusCode: 200, body: "OK" };
+}
+
+// 期間選択 ("userStatusがHISTORY_SELECTの場合のみ）
+if (
+  userStatus[userId]?.mode === "HISTORY_SELECT" &&
+  ["今日", "３日間", "今週", "大宰府"].includes(reqMessage)
+) {
+  console.log("期間選択リクエスト:", reqMessage);
+
+  // type に変換
+  let type;
+  switch (reqMessage) {
+    case "今日":
+      type = "today";
+      break;
+    case "３日間":
+      type = "3days";
+      break;
+    case "今週":
+      type = "thisWeek";
+      break;
+    case "大宰府":
+      type = "dazaifu";
+      break;
+    default:
+      type = "today";
+  }
+
+  try {
+    const statement = await getStatement(type);
+
+    console.log(
+      "表示対象(type=2)",
+      statement.transactions
+        .filter(tx => String(tx.transactionType) === "2")
+        .map(tx => tx.transactionDate)
+    );
+
+    const text = statement.transactions
+      .filter(tx => String(tx.transactionType) === "2")
+      .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate))
+      .slice(0, 5)
+      .map(tx =>
+        `📅 ${tx.transactionDate}\n💴 ${Math.abs(Number(tx.amount))}円\n📝 ${tx.remarks ?? "（摘要なし）"}`
+      )
+      .join("\n\n");
+
+      await replyText(replyToken, text || "履歴がありません");
+
+      // 状態をクリア
+      delete userStatus[userId];
+      return { statusCode: 200, body: "OK" };
+  
+    } catch (err) {
+      console.error("履歴取得エラー:", err);
+      await replyText(replyToken, "履歴の取得に失敗しました");
+  
+      delete userStatus[userId];
+      return { statusCode: 500, body: "NG" };
+    }
+  }
+  
